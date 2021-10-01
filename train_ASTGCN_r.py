@@ -73,8 +73,11 @@ train_loader, train_target_tensor, val_loader, val_target_tensor, test_loader, t
     graph_signal_matrix_filename, num_of_hours,
     num_of_days, num_of_weeks, DEVICE, batch_size)
 
-adj_mx, distance_mx = get_adjacency_matrix(adj_filename, num_of_vertices, id_filename)
-
+# adj_mx, distance_mx = get_adjacency_matrix(adj_filename, num_of_vertices, id_filename)
+adj_mx = np.load('adjacency_matrix.npy')
+print('--------------------------------------------', adj_mx.shape)
+print('--------------------------------------------', adj_mx.shape)
+adj_mx = adj_mx.astype(float)
 net = make_model(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, adj_mx,
                  num_for_predict, len_input, num_of_vertices)
 
