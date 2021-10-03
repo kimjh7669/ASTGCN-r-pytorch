@@ -1,3 +1,5 @@
 *.npz
 *.npy
 experiments/
+*.ipynb
+.ipynb_checkpoints/
