@@ -62,7 +62,7 @@ K = int(training_config['K'])
 loss_function = training_config['loss_function']
 metric_method = training_config['metric_method']
 missing_value = float(training_config['missing_value'])
-
+early_stop_num = training_config['early_stop_num']
 folder_dir = '%s_h%dd%dw%d_channel%d_%e' % (model_name, num_of_hours, num_of_days, num_of_weeks, in_channels, learning_rate)
 print('folder_dir:', folder_dir)
 params_path = os.path.join('experiments', dataset_name, folder_dir)
@@ -153,6 +153,9 @@ def train_main():
         print('load weight from: ', params_filename)
 
     # train model
+    val_cnt = 0
+    val_loss_list = []
+    train_loss_list = []
     for epoch in range(start_epoch, epochs):
 
         params_filename = os.path.join(params_path, 'epoch_%s.params' % epoch)
@@ -161,16 +164,22 @@ def train_main():
             val_loss = compute_val_loss_mstgcn(net, val_loader, criterion_masked, masked_flag,missing_value,sw, epoch)
         else:
             val_loss = compute_val_loss_mstgcn(net, val_loader, criterion, masked_flag, missing_value, sw, epoch)
-
+        
 
         if val_loss < best_val_loss:
+            val_cnt = 0
             best_val_loss = val_loss
             best_epoch = epoch
             torch.save(net.state_dict(), params_filename)
             print('save parameters to file: %s' % params_filename)
+        else:
+            val_cnt += 1
+        if val_cnt == early_stop_num:
+            break
 
         net.train()  # ensure dropout layers are in train mode
-
+        total_loss = 0
+        train_cnt = 0
         for batch_index, batch_data in enumerate(train_loader):
 
             encoder_inputs, labels = batch_data
@@ -184,6 +193,8 @@ def train_main():
             else :
                 loss = criterion(outputs, labels)
 
+            total_loss += loss.cpu().data.numpy() * len(batch_data)
+            train_cnt += len(batch_data)
 
             loss.backward()
 
@@ -196,12 +207,19 @@ def train_main():
             sw.add_scalar('training_loss', training_loss, global_step)
 
             if global_step % 1000 == 0:
-
                 print('global step: %s, training loss: %.2f, time: %.2fs' % (global_step, training_loss, time() - start_time))
-
+        train_loss_list.append(total_loss/train_cnt)
+        
+        val_loss_list.append(val_loss)
     print('best epoch:', best_epoch)
 
     # apply the best model on the test set
+    print(train_loss_list)
+    print(val_loss_list)
+    train_loss_list = np.array(train_loss_list)
+    val_loss_list = np.array(val_loss_list)
+    np.save(params_path + 'train_loss.npy', train_loss_list)
+    np.save(params_path + 'train_loss.npy', val_loss_list)
     predict_main(best_epoch, test_loader, test_target_tensor,metric_method ,_mean, _std, 'test')
 
 

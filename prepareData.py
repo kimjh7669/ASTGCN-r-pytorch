@@ -107,7 +107,7 @@ def get_sample_indices(data_sequence, num_of_weeks, num_of_days, num_of_hours,
     return week_sample, day_sample, hour_sample, target
 
 
-def read_and_generate_dataset(graph_signal_matrix_filename,
+def read_and_generate_dataset(train_matrix_filename, val_matrix_filename, test_matrix_filename,
                                                      num_of_weeks, num_of_days,
                                                      num_of_hours, num_for_predict,
                                                      points_per_hour=12, save=False):
@@ -127,9 +127,10 @@ def read_and_generate_dataset(graph_signal_matrix_filename,
     target: np.ndarray,
             shape is (num_of_samples, num_of_vertices, num_for_predict)
     '''
-    data_seq = np.load(graph_signal_matrix_filename)['data']  # (sequence_length, num_of_vertices, num_of_features)
+    ################train##################
+    data_seq = np.load(train_matrix_filename)['data']  # (sequence_length, num_of_vertices, num_of_features)
 
-    all_samples = []
+    train_samples = []
     for idx in range(data_seq.shape[0]):
         sample = get_sample_indices(data_seq, num_of_weeks, num_of_days,
                                     num_of_hours, idx, num_for_predict,
@@ -159,18 +160,90 @@ def read_and_generate_dataset(graph_signal_matrix_filename,
         time_sample = np.expand_dims(np.array([idx]), axis=0)  # (1,1)
         sample.append(time_sample)
 
-        all_samples.append(
+        train_samples.append(
+            sample)  # sampe：[(week_sample),(day_sample),(hour_sample),target,time_sample] = [(1,N,F,Tw),(1,N,F,Td),(1,N,F,Th),(1,N,Tpre),(1,1)]
+    
+    ####val###############
+    data_seq = np.load(val_matrix_filename)['data']  # (sequence_length, num_of_vertices, num_of_features)
+
+    val_samples = []
+    for idx in range(data_seq.shape[0]):
+        sample = get_sample_indices(data_seq, num_of_weeks, num_of_days,
+                                    num_of_hours, idx, num_for_predict,
+                                    points_per_hour)
+        if ((sample[0] is None) and (sample[1] is None) and (sample[2] is None)):
+            continue
+
+        week_sample, day_sample, hour_sample, target = sample
+
+        sample = []  # [(week_sample),(day_sample),(hour_sample),target,time_sample]
+
+        if num_of_weeks > 0:
+            week_sample = np.expand_dims(week_sample, axis=0).transpose((0, 2, 3, 1))  # (1,N,F,T)
+            sample.append(week_sample)
+
+        if num_of_days > 0:
+            day_sample = np.expand_dims(day_sample, axis=0).transpose((0, 2, 3, 1))  # (1,N,F,T)
+            sample.append(day_sample)
+
+        if num_of_hours > 0:
+            hour_sample = np.expand_dims(hour_sample, axis=0).transpose((0, 2, 3, 1))  # (1,N,F,T)
+            sample.append(hour_sample)
+
+        target = np.expand_dims(target, axis=0).transpose((0, 2, 3, 1))[:, :, 0, :]  # (1,N,T)
+        sample.append(target)
+
+        time_sample = np.expand_dims(np.array([idx]), axis=0)  # (1,1)
+        sample.append(time_sample)
+
+        val_samples.append(
             sample)  # sampe：[(week_sample),(day_sample),(hour_sample),target,time_sample] = [(1,N,F,Tw),(1,N,F,Td),(1,N,F,Th),(1,N,Tpre),(1,1)]
 
-    split_line1 = int(len(all_samples) * 0.6)
-    split_line2 = int(len(all_samples) * 0.8)
+
+    ################test#####################
+    data_seq = np.load(test_matrix_filename)['data']  # (sequence_length, num_of_vertices, num_of_features)
+
+    test_samples = []
+    for idx in range(data_seq.shape[0]):
+        sample = get_sample_indices(data_seq, num_of_weeks, num_of_days,
+                                    num_of_hours, idx, num_for_predict,
+                                    points_per_hour)
+        if ((sample[0] is None) and (sample[1] is None) and (sample[2] is None)):
+            continue
+
+        week_sample, day_sample, hour_sample, target = sample
+
+        sample = []  # [(week_sample),(day_sample),(hour_sample),target,time_sample]
+
+        if num_of_weeks > 0:
+            week_sample = np.expand_dims(week_sample, axis=0).transpose((0, 2, 3, 1))  # (1,N,F,T)
+            sample.append(week_sample)
+
+        if num_of_days > 0:
+            day_sample = np.expand_dims(day_sample, axis=0).transpose((0, 2, 3, 1))  # (1,N,F,T)
+            sample.append(day_sample)
+
+        if num_of_hours > 0:
+            hour_sample = np.expand_dims(hour_sample, axis=0).transpose((0, 2, 3, 1))  # (1,N,F,T)
+            sample.append(hour_sample)
+
+        target = np.expand_dims(target, axis=0).transpose((0, 2, 3, 1))[:, :, 0, :]  # (1,N,T)
+        sample.append(target)
+
+        time_sample = np.expand_dims(np.array([idx]), axis=0)  # (1,1)
+        sample.append(time_sample)
+
+        test_samples.append(
+            sample)  # sampe：[(week_sample),(day_sample),(hour_sample),target,time_sample] = [(1,N,F,Tw),(1,N,F,Td),(1,N,F,Th),(1,N,Tpre),(1,1)]
+
+
 
     training_set = [np.concatenate(i, axis=0)
-                    for i in zip(*all_samples[:split_line1])]  # [(B,N,F,Tw),(B,N,F,Td),(B,N,F,Th),(B,N,Tpre),(B,1)]
+                    for i in zip(*train_samples)]  # [(B,N,F,Tw),(B,N,F,Td),(B,N,F,Th),(B,N,Tpre),(B,1)]
     validation_set = [np.concatenate(i, axis=0)
-                      for i in zip(*all_samples[split_line1: split_line2])]
+                      for i in zip(*val_samples)]
     testing_set = [np.concatenate(i, axis=0)
-                   for i in zip(*all_samples[split_line2:])]
+                   for i in zip(*test_samples)]
 
     train_x = np.concatenate(training_set[:-2], axis=-1)  # (B,N,F,T')
     val_x = np.concatenate(validation_set[:-2], axis=-1)
@@ -297,7 +370,10 @@ num_of_vertices = int(data_config['num_of_vertices'])
 points_per_hour = int(data_config['points_per_hour'])
 num_for_predict = int(data_config['num_for_predict'])
 graph_signal_matrix_filename = data_config['graph_signal_matrix_filename']
+train_matrix_filename = data_config['train_matrix_filename']
+val_matrix_filename = data_config['val_matrix_filename']
+test_matrix_filename = data_config['test_matrix_filename']
 data = np.load(graph_signal_matrix_filename)
 data['data'].shape
 
-all_data = read_and_generate_dataset(graph_signal_matrix_filename, num_of_weeks, num_of_days, num_of_hours, num_for_predict, points_per_hour=points_per_hour, save=True)
+all_data = read_and_generate_dataset(train_matrix_filename, val_matrix_filename, test_matrix_filename, num_of_weeks, num_of_days, num_of_hours, num_for_predict, points_per_hour=points_per_hour, save=True)
