@@ -62,7 +62,7 @@ K = int(training_config['K'])
 loss_function = training_config['loss_function']
 metric_method = training_config['metric_method']
 missing_value = float(training_config['missing_value'])
-early_stop_num = training_config['early_stop_num']
+early_stop_num = int(training_config['early_stop_num'])
 folder_dir = '%s_h%dd%dw%d_channel%d_%e' % (model_name, num_of_hours, num_of_days, num_of_weeks, in_channels, learning_rate)
 print('folder_dir:', folder_dir)
 params_path = os.path.join('experiments', dataset_name, folder_dir)
@@ -79,7 +79,7 @@ print('--------------------------------------------', adj_mx.shape)
 print('--------------------------------------------', adj_mx.shape)
 adj_mx = adj_mx.astype(float)
 net = make_model(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, adj_mx,
-                 num_for_predict, len_input, num_of_vertices)
+                 num_for_predict, len_input, num_of_vertices, num_of_weeks, num_of_days, num_of_hours, batch_size)
 
 
 def train_main():
@@ -157,7 +157,7 @@ def train_main():
     val_loss_list = []
     train_loss_list = []
     for epoch in range(start_epoch, epochs):
-
+        print('current epoch : %d' % epoch)
         params_filename = os.path.join(params_path, 'epoch_%s.params' % epoch)
 
         if masked_flag:
@@ -207,7 +207,7 @@ def train_main():
             sw.add_scalar('training_loss', training_loss, global_step)
 
             if global_step % 1000 == 0:
-                print('global step: %s, training loss: %.2f, time: %.2fs' % (global_step, training_loss, time() - start_time))
+                print('global step: %s, training loss: %.8f, time: %.2fs' % (global_step, training_loss, time() - start_time))
         train_loss_list.append(total_loss/train_cnt)
         
         val_loss_list.append(val_loss)
@@ -218,8 +218,8 @@ def train_main():
     print(val_loss_list)
     train_loss_list = np.array(train_loss_list)
     val_loss_list = np.array(val_loss_list)
-    np.save(params_path + 'train_loss.npy', train_loss_list)
-    np.save(params_path + 'train_loss.npy', val_loss_list)
+    np.save(params_path + '/train_loss.npy', train_loss_list)
+    np.save(params_path + '/val_loss.npy', val_loss_list)
     predict_main(best_epoch, test_loader, test_target_tensor,metric_method ,_mean, _std, 'test')
 
 

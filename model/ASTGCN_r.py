@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 from lib.utils import scaled_Laplacian, cheb_polynomial
 
 
@@ -255,7 +256,70 @@ class ASTGCN_submodule(nn.Module):
         return output
 
 
-def make_model(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, adj_mx, num_for_predict, len_input, num_of_vertices):
+
+class ASTGCN_model(nn.Module):
+
+    def __init__(self, DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, cheb_polynomials, num_for_predict, len_input, num_of_vertices, num_of_weeks, num_of_days, num_of_hours, batch_size):
+        '''
+        :param nb_block:
+        :param in_channels:
+        :param K:
+        :param nb_chev_filter:
+        :param nb_time_filter:
+        :param time_strides:
+        :param cheb_polynomials:
+        :param nb_predict_step:
+        '''
+        super(ASTGCN_model, self).__init__()
+        self.num_of_weeks = num_of_weeks
+        self.num_of_days = num_of_days
+        self.num_of_hours = num_of_hours
+        if self.num_of_weeks > 0:
+            self.ASTGCN_week = ASTGCN_submodule(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, cheb_polynomials, num_for_predict, len_input, num_of_vertices)
+        if self.num_of_days > 0:
+            self.ASTGCN_days = ASTGCN_submodule(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, cheb_polynomials, num_for_predict, len_input, num_of_vertices)
+        if self.num_of_hours > 0:
+            self.ASTGCN_hours = ASTGCN_submodule(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, cheb_polynomials, num_for_predict, len_input, num_of_vertices)
+    
+        # self.W_weeks = nn.Parameter(torch.randn(12), requires_grad=True)
+        # self.W_hours = nn.Parameter(torch.randn(12), requires_grad=True)
+        # self.W_weeks = Variable(torch.randn((batch_size, num_of_vertices, 12)), requires_grad=True).to(DEVICE)
+        # self.W_hours = Variable(torch.randn((batch_size, num_of_vertices, 12)), requires_grad=True).to(DEVICE)
+
+        self.weeks_fc = nn.Linear(12, 12)
+        self.hours_fc = nn.Linear(12, 12)
+
+        # self.final_fc = nn.Linear(12 * (self.num_of_weeks + self.num_of_days + self.num_of_hours), 12)
+        self.DEVICE = DEVICE
+        self.to(DEVICE)
+
+    def forward(self, x):
+        '''
+        :param x: (B, N_nodes, F_in, T_in)
+        :return: (B, N_nodes, T_out)
+        '''
+        weeks_data = x[:,:,:,0:self.num_of_weeks * 12]
+        # if self.num_of_days:
+        #     days_data = x[:,:,:,self.num_of_weeks * 12:(self.num_of_weeks+self.num_of_days)*12]
+        hours_data = x[:,:,:,(self.num_of_weeks+self.num_of_days)*12:]
+        
+        if self.num_of_weeks > 0:            
+            weeks_data = self.ASTGCN_week(weeks_data)
+        # if self.num_of_days > 0:            
+        #     days_data = self.ASTGCN_week(days_data)
+        if self.num_of_hours > 0:            
+            hours_data = self.ASTGCN_week(hours_data)
+        
+        # total_data = torch.cat((weeks_data, hours_data), 2)
+        
+        
+        output = self.weeks_fc(weeks_data) + self.hours_fc(hours_data)
+        # print(self.weeks_fc.parameters())
+        # print(output.shape)
+        return output
+
+
+def make_model(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, adj_mx, num_for_predict, len_input, num_of_vertices, num_of_weeks, num_of_days, num_of_hours, batch_size):
     '''
 
     :param DEVICE:
@@ -272,8 +336,8 @@ def make_model(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter,
     '''
     L_tilde = scaled_Laplacian(adj_mx)
     cheb_polynomials = [torch.from_numpy(i).type(torch.FloatTensor).to(DEVICE) for i in cheb_polynomial(L_tilde, K)]
-    model = ASTGCN_submodule(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, cheb_polynomials, num_for_predict, len_input, num_of_vertices)
-
+    model = ASTGCN_model(DEVICE, nb_block, in_channels, K, nb_chev_filter, nb_time_filter, time_strides, cheb_polynomials, num_for_predict, len_input, num_of_vertices, num_of_weeks, num_of_days, num_of_hours, batch_size)
+    
     for p in model.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
