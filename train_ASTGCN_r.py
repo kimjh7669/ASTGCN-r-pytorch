@@ -156,7 +156,10 @@ def train_main():
     val_cnt = 0
     val_loss_list = []
     train_loss_list = []
+    epoch_time_list = []
+    total_start_time = time()
     for epoch in range(start_epoch, epochs):
+        start_epoch_time = time()
         print('current epoch : %d' % epoch)
         params_filename = os.path.join(params_path, 'epoch_%s.params' % epoch)
 
@@ -208,18 +211,23 @@ def train_main():
 
             if global_step % 1000 == 0:
                 print('global step: %s, training loss: %.8f, time: %.2fs' % (global_step, training_loss, time() - start_time))
+        end_epoch_time = time()
         train_loss_list.append(total_loss/train_cnt)
-        
         val_loss_list.append(val_loss)
-    print('best epoch:', best_epoch)
+        epoch_time_list.append(end_epoch_time - start_epoch_time)
 
+    total_end_time = time()
+    total_train_time = total_end_time - total_start_time
+    print('best epoch:', best_epoch, ', total train time:', total_train_time)    
+    
     # apply the best model on the test set
-    print(train_loss_list)
-    print(val_loss_list)
     train_loss_list = np.array(train_loss_list)
     val_loss_list = np.array(val_loss_list)
+    epoch_time_list = np.array(epoch_time_list)
     np.save(params_path + '/train_loss.npy', train_loss_list)
     np.save(params_path + '/val_loss.npy', val_loss_list)
+    np.save(params_path + '/epoch_time_list.npy', epoch_time_list)
+
     predict_main(best_epoch, test_loader, test_target_tensor,metric_method ,_mean, _std, 'test')
 
 
@@ -248,17 +256,3 @@ if __name__ == "__main__":
     train_main()
 
     # predict_main(13, test_loader, test_target_tensor,metric_method, _mean, _std, 'test')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
